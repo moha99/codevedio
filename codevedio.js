@@ -1,277 +1,87 @@
-// ---------------------------------------------------
-// BLOGTOC
-// ---------------------------------------------------
-// BlogToc creates a clickable Table Of Contents for
-// Blogger Blogs.
-// It uses the JSON post feed, and create a ToC of it.
-// The ToC can be sorted by title or by date, both
-// ascending and descending, and can be filtered by
-// label.
-// ---------------------------------------------------
-// Author: Beautiful Beta
-// Url: http://beautifulbeta.blogspot.com
-// Version: 2
-// Date: 2007-04-12
-// ---------------------------------------------------
-// Modified by Aneesh 
-// www.bloggerplugins.org
-// ????? ????? ?? ????? ????? 
-// http://www.condaianllkhir.com/
-// Date : 02-08-2011
-// global arrays
+/*jshint browser:true */
+/*!
+* FitVids 1.1
+*
+* Copyright 2013, Chris Coyier - http://css-tricks.com + Dave Rupert - http://daverupert.com
+* Credit to Thierry Koblentz - http://www.alistapart.com/articles/creating-intrinsic-ratios-for-video/
+* Released under the WTFPL license - http://sam.zoy.org/wtfpl/
+*
+*/
 
-   var postTitle = new Array();     // array of posttitles
-   var postUrl = new Array();       // array of posturls
-   var postDate = new Array();      // array of post publish dates
-   var postSum = new Array();       // array of post summaries
-   var postLabels = new Array();    // array of post labels
+;(function( $ ){
 
-// global variables
-   var sortBy = "datenewest";         // default value for sorting ToC
-   var tocLoaded = false;           // true if feed is read and ToC can be displayed
-   var numChars = 250;              // number of characters in post summary
-   var postFilter = '';             // default filter value
-   var tocdiv = document.getElementById("bp_toc"); //the toc container
-   var totalEntires =0; //Entries grabbed till now
-   var totalPosts =0; //Total number of posts in the blog.
+  'use strict';
 
-// main callback function
+  $.fn.fitVids = function( options ) {
+    var settings = {
+      customSelector: null,
+      ignore: null
+    };
 
-function loadtoc(json) {
+    if(!document.getElementById('fit-vids-style')) {
+      // appendStyles: https://github.com/toddmotto/fluidvids/blob/master/dist/fluidvids.js
+      var head = document.head || document.getElementsByTagName('head')[0];
+      var css = '.fluid-width-video-wrapper{width:100%;position:relative;padding:0;}.fluid-width-video-wrapper iframe,.fluid-width-video-wrapper object,.fluid-width-video-wrapper embed {position:absolute;top:0;left:0;width:100%;height:100%;}';
+      var div = document.createElement("div");
+      div.innerHTML = '<p>x</p><style id="fit-vids-style">' + css + '</style>';
+      head.appendChild(div.childNodes[1]);
+    }
 
-   function getPostData() {
-   // this functions reads all postdata from the json-feed and stores it in arrays
-      if ("entry" in json.feed) {
-         var numEntries = json.feed.entry.length;
-         totalEntires = totalEntires + numEntries;
-         totalPosts=json.feed.openSearch$totalResults.$t
-         if(totalPosts>totalEntires)
-         {
-         var nextjsoncall = document.createElement('script');
-         nextjsoncall.type = 'text/javascript';
-         startindex=totalEntires+1;
-         nextjsoncall.setAttribute("src", "/feeds/posts/summary?start-index=" + startindex + "&max-results=500&alt=json-in-script&callback=loadtoc");
-         tocdiv.appendChild(nextjsoncall);
-         }
-      // main loop gets all the entries from the feed
-         for (var i = 0; i < numEntries; i++) {
-         // get the entry from the feed
-            var entry = json.feed.entry[i];
+    if ( options ) {
+      $.extend( settings, options );
+    }
 
-         // get the posttitle from the entry
-            var posttitle = entry.title.$t;
+    return this.each(function(){
+      var selectors = [
+        'iframe[src*="player.vimeo.com"]',
+        'iframe[src*="youtube.com"]',
+        'iframe[src*="youtube-nocookie.com"]',
+        'iframe[src*="kickstarter.com"][src*="video.html"]',
+        'object',
+        'embed'
+      ];
 
-         // get the post date from the entry
-            var postdate = entry.published.$t.substring(0,10);
-
-         // get the post url from the entry
-            var posturl;
-            for (var k = 0; k < entry.link.length; k++) {
-               if (entry.link[k].rel == 'alternate') {
-               posturl = entry.link[k].href;
-               break;
-               }
-            }
-
-         // get the post contents from the entry
-         // strip all html-characters, and reduce it to a summary
-            if ("content" in entry) {
-               var postcontent = entry.content.$t;}
-            else
-               if ("summary" in entry) {
-                  var postcontent = entry.summary.$t;}
-               else var postcontent = "";
-         // strip off all html-tags
-            var re = /<\S[^>]*>/g; 
-            postcontent = postcontent.replace(re, "");
-         // reduce postcontent to numchar characters, and then cut it off at the last whole word
-            if (postcontent.length > numChars) {
-               postcontent = postcontent.substring(0,numChars);
-               var quoteEnd = postcontent.lastIndexOf(" ");
-               postcontent = postcontent.substring(0,quoteEnd) + '...';
-            }
-
-         // get the post labels from the entry
-            var pll = '';
-            if ("category" in entry) {
-               for (var k = 0; k < entry.category.length; k++) {
-                  pll += '<a href="javascript:filterPosts(\'' + entry.category[k].term + '\');" title="Click here to select all posts with label \'' + entry.category[k].term + '\'">' + entry.category[k].term + '</a>,  ';
-               }
-            var l = pll.lastIndexOf(',');
-            if (l != -1) { pll = pll.substring(0,l); }
-            }
-
-         // add the post data to the arrays
-            postTitle.push(posttitle);
-            postDate.push(postdate);
-            postUrl.push(posturl);
-            postSum.push(postcontent);
-            postLabels.push(pll);
-         }
+      if (settings.customSelector) {
+        selectors.push(settings.customSelector);
       }
-      if(totalEntires==totalPosts) {tocLoaded=true;showToc();}
-   } // end of getPostData
 
-// start of showtoc function body
-// get the number of entries that are in the feed
-//   numEntries = json.feed.entry.length;
+      var ignoreList = '.fitvidsignore';
 
-// get the postdata from the feed
-   getPostData();
-
-// sort the arrays
-   sortPosts(sortBy);
-   tocLoaded = true;
-}
-
-
-
-// filter and sort functions
-
-
-function filterPosts(filter) {
-// This function changes the filter
-// and displays the filtered list of posts
-  // document.getElementById("bp_toc").scrollTop = document.getElementById("bp_toc").offsetTop;;
-   postFilter = filter;
-   displayToc(postFilter);
-} // end filterPosts
-
-function allPosts() {
-// This function resets the filter
-// and displays all posts
-
-   postFilter = '';
-   displayToc(postFilter);
-} // end allPosts
-
-function sortPosts(sortBy) {
-// This function is a simple bubble-sort routine
-// that sorts the posts
-
-   function swapPosts(x,y) {
-   // Swaps 2 ToC-entries by swapping all array-elements
-      var temp = postTitle[x];
-      postTitle[x] = postTitle[y];
-      postTitle[y] = temp;
-      var temp = postDate[x];
-      postDate[x] = postDate[y];
-      postDate[y] = temp;
-      var temp = postUrl[x];
-      postUrl[x] = postUrl[y];
-      postUrl[y] = temp;
-      var temp = postSum[x];
-      postSum[x] = postSum[y];
-      postSum[y] = temp;
-      var temp = postLabels[x];
-      postLabels[x] = postLabels[y];
-      postLabels[y] = temp;
-   } // end swapPosts
-
-   for (var i=0; i < postTitle.length-1; i++) {
-      for (var j=i+1; j<postTitle.length; j++) {
-         if (sortBy == "titleasc") { if (postTitle[i] > postTitle[j]) { swapPosts(i,j); } }
-         if (sortBy == "titledesc") { if (postTitle[i] < postTitle[j]) { swapPosts(i,j); } }
-         if (sortBy == "dateoldest") { if (postDate[i] > postDate[j]) { swapPosts(i,j); } }
-         if (sortBy == "datenewest") { if (postDate[i] < postDate[j]) { swapPosts(i,j); } }
+      if(settings.ignore) {
+        ignoreList = ignoreList + ', ' + settings.ignore;
       }
-   }
-} // end sortPosts
 
-// displaying the toc
+      var $allVideos = $(this).find(selectors.join(','));
+      $allVideos = $allVideos.not('object object'); // SwfObj conflict patch
+      $allVideos = $allVideos.not(ignoreList); // Disable FitVids on this video.
 
-function displayToc(filter) {
-// this function creates a three-column table and adds it to the screen
-   var numDisplayed = 0;
-   var tocTable = '';
-   var tocHead1 = '????? ???????';
-   var tocTool1 = 'Click to sort by title';
-   var tocHead2 = '???????';
-   var tocTool2 = 'Click to sort by date';
-   var tocHead3 = '???????';
-   var tocTool3 = '';
-   if (sortBy == "titleasc") { 
-      tocTool1 += ' (descending)';
-      tocTool2 += ' (newest first)';
-   }
-   if (sortBy == "titledesc") { 
-      tocTool1 += ' (ascending)';
-      tocTool2 += ' (newest first)';
-   }
-   if (sortBy == "dateoldest") { 
-      tocTool1 += ' (ascending)';
-      tocTool2 += ' (newest first)';
-   }
-   if (sortBy == "datenewest") { 
-      tocTool1 += ' (ascending)';
-      tocTool2 += ' (oldest first)';
-   }
-   if (postFilter != '') {
-      tocTool3 = 'Click to show all posts';
-   }
-   tocTable += '<table>';
-   tocTable += '<tr>';
-   tocTable += '<td class="toc-header-col1">';
-   tocTable += '<a href="javascript:toggleTitleSort();" title="' + tocTool1 + '">' + tocHead1 + '</a>';
-   tocTable += '</td>';
-   tocTable += '<td class="toc-header-col2">';
-   tocTable += '<a href="javascript:toggleDateSort();" title="' + tocTool2 + '">' + tocHead2 + '</a>';
-   tocTable += '</td>';
-   tocTable += '<td class="toc-header-col3">';
-   tocTable += '<a href="javascript:allPosts();" title="' + tocTool3 + '">' + tocHead3 + '</a>';
-   tocTable += '</td>';
-   tocTable += '</tr>';
-   for (var i = 0; i < postTitle.length; i++) {
-      if (filter == '') {
-         tocTable += '<tr><td class="toc-entry-col1"><a href="' + postUrl[i] + '" title="' + postSum[i] + '">' + postTitle[i] + '</a></td><td class="toc-entry-col2">' + postDate[i] + '</td><td class="toc-entry-col3">' + postLabels[i] + '</td></tr>';
-         numDisplayed++;
-      } else {
-          z = postLabels[i].lastIndexOf(filter);
-          if ( z!= -1) {
-             tocTable += '<tr><td class="toc-entry-col1"><a href="' + postUrl[i] + '" title="' + postSum[i] + '">' + postTitle[i] + '</a></td><td class="toc-entry-col2">' + postDate[i] + '</td><td class="toc-entry-col3">' + postLabels[i] + '</td></tr>';
-             numDisplayed++;
-          }
+      $allVideos.each(function(){
+        var $this = $(this);
+        if($this.parents(ignoreList).length > 0) {
+          return; // Disable FitVids on this video.
         }
-   }
-   tocTable += '</table>';
-   if (numDisplayed == postTitle.length) {
-      var tocNote = '<span class="toc-note"> ??? ????????? ' + postTitle.length + ' ?????<br/></span>'; }
-   else {
-      var tocNote = '<span class="toc-note">??? ????????? ' + numDisplayed + ' ?????? ???? \'';
-      tocNote += postFilter + '\' *** '+ postTitle.length + ' ????? ????? ?????????<br/></span>';
-   }
-   tocdiv.innerHTML = tocNote + tocTable;
-} // end of displayToc
-
-function toggleTitleSort() {
-   if (sortBy == "titleasc") { sortBy = "titledesc"; }
-   else { sortBy = "titleasc"; }
-   sortPosts(sortBy);
-   displayToc(postFilter);
-} // end toggleTitleSort
-
-function toggleDateSort() {
-   if (sortBy == "datenewest") { sortBy = "dateoldest"; }
-   else { sortBy = "datenewest"; }
-   sortPosts(sortBy);
-   displayToc(postFilter);
-} // end toggleTitleSort
-
-
-function showToc() {
-  if (tocLoaded) { 
-     displayToc(postFilter);
-     var toclink = document.getElementById("toclink");
-   
-  }
-  else { alert("Just wait... TOC is loading"); }
-}
-"<div id=\"toc-loading\">Loading content, please wait...<br /><img align=\"middle\" src=\"http://2.bp.blogspot.com/-WK0-4ILTaL8/T0NjToWRWlI/AAAAAAAABmI/U5p3cqo9lOU/s1600/loading.gif\" /></div>"
-
-function hideToc() {
-  var tocdiv = document.getElementById("toc");
-  tocdiv.innerHTML = '';
-  var toclink = document.getElementById("toclink");
-  toclink.innerHTML = '<a href="#" onclick="scroll(0,0); showToc(); Effect.toggle('+"'toc-result','blind');"+'">» Show Table of Contents</a> <img src="http://chenkaie.blog.googlepages.com/new_1.gif"/>';
-}
-"<div id=\"toc-loading\">Loading content, please wait...<br /><img align=\"middle\" src=\"http://2.bp.blogspot.com/-WK0-4ILTaL8/T0NjToWRWlI/AAAAAAAABmI/U5p3cqo9lOU/s1600/loading.gif\" /></div>";
+        if (this.tagName.toLowerCase() === 'embed' && $this.parent('object').length || $this.parent('.fluid-width-video-wrapper').length) { return; }
+        if ((!$this.css('height') && !$this.css('width')) && (isNaN($this.attr('height')) || isNaN($this.attr('width'))))
+        {
+          $this.attr('height', 9);
+          $this.attr('width', 16);
+        }
+        var height = ( this.tagName.toLowerCase() === 'object' || ($this.attr('height') && !isNaN(parseInt($this.attr('height'), 10))) ) ? parseInt($this.attr('height'), 10) : $this.height(),
+            width = !isNaN(parseInt($this.attr('width'), 10)) ? parseInt($this.attr('width'), 10) : $this.width(),
+            aspectRatio = height / width;
+        if(!$this.attr('name')){
+          var videoName = 'fitvid' + $.fn.fitVids._count;
+          $this.attr('name', videoName);
+          $.fn.fitVids._count++;
+        }
+        $this.wrap('<div class="fluid-width-video-wrapper"></div>').parent('.fluid-width-video-wrapper').css('padding-top', (aspectRatio * 100)+'%');
+        $this.removeAttr('height').removeAttr('width');
+      });
+    });
+  };
+  
+  // Internal counter for unique video names.
+  $.fn.fitVids._count = 0;
+  
+// Works with either jQuery or Zepto
+})( window.jQuery || window.Zepto );
